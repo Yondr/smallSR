@@ -4,7 +4,7 @@ import tensorrt as trt
 import pycuda.driver as cuda
 import pycuda.autoinit
 
-ENGINE_PATH = "Y:/gemini/project/weights/student_sr_1280x960_fp16.engine"
+ENGINE_PATH = "Y:/gemini/project_clean/weights/student_sr_1280x960_fp16.engine"
 
 # Target size for SR
 OUT_W = 1280
@@ -15,96 +15,128 @@ OUT_H = 960
 # TensorRT Loader
 # -----------------------------
 class TRTModule:
-    def __init__(self, engine_path):
+    def __init__(self, engine_path: str):
         logger = trt.Logger(trt.Logger.INFO)
-
         with open(engine_path, "rb") as f, trt.Runtime(logger) as runtime:
             self.engine = runtime.deserialize_cuda_engine(f.read())
+        if self.engine is None:
+            raise RuntimeError("Failed to load TensorRT engine")
 
         self.context = self.engine.create_execution_context()
+        self.stream = cuda.Stream()
 
-        # Allocate buffers
-        self.inputs = []
-        self.outputs = []
-        self.bindings = []
+        # имена входа/выхода (TensorRT 10.x io_tensors API)
+        self.input_name = None
+        self.output_name = None
 
-        for i in range(self.engine.num_bindings):
-            name = self.engine.get_binding_name(i)
-            dtype = trt.nptype(self.engine.get_binding_dtype(i))
-            shape = self.context.get_binding_shape(i)
+        for i in range(self.engine.num_io_tensors):
+            name = self.engine.get_tensor_name(i)
+            mode = self.engine.get_tensor_mode(name)
+            if mode == trt.TensorIOMode.INPUT:
+                self.input_name = name
+            elif mode == trt.TensorIOMode.OUTPUT:
+                self.output_name = name
 
-            size = np.prod(shape)
-            host_mem = cuda.pagelocked_empty(size, dtype)
-            device_mem = cuda.mem_alloc(host_mem.nbytes)
+        if self.input_name is None or self.output_name is None:
+            raise RuntimeError("Could not find input/output tensors in engine")
 
-            self.bindings.append(int(device_mem))
+        self.input_shape = tuple(self.engine.get_tensor_shape(self.input_name))
+        self.output_shape = tuple(self.engine.get_tensor_shape(self.output_name))
 
-            if self.engine.binding_is_input(i):
-                self.inputs.append({"host": host_mem, "device": device_mem, "shape": shape})
-            else:
-                self.outputs.append({"host": host_mem, "device": device_mem, "shape": shape})
+    def infer(self, img_chw: np.ndarray) -> np.ndarray:
+        """
+        img_chw: (1, 3, H, W), float32, [0,1]
+        """
+        img_chw = np.ascontiguousarray(img_chw.astype(np.float32))
 
-    def infer(self, img_chw):
-        inp = self.inputs[0]
+        engine_in_shape = self.engine.get_tensor_shape(self.input_name)
+        if any(d == -1 for d in engine_in_shape):
+            self.context.set_input_shape(self.input_name, img_chw.shape)
 
-        np.copyto(inp["host"], img_chw.ravel())
-        cuda.memcpy_htod(inp["device"], inp["host"])
+        out_shape = tuple(self.context.get_tensor_shape(self.output_name))
+        out_size = int(np.prod(out_shape))
 
-        self.context.execute_v2(self.bindings)
+        d_input = cuda.mem_alloc(img_chw.nbytes)
+        out_host = np.empty(out_size, dtype=np.float32)
+        d_output = cuda.mem_alloc(out_host.nbytes)
 
-        out = self.outputs[0]
-        cuda.memcpy_dtoh(out["host"], out["device"])
+        self.context.set_tensor_address(self.input_name, int(d_input))
+        self.context.set_tensor_address(self.output_name, int(d_output))
 
-        out_img = out["host"].reshape(out["shape"])
-        return out_img
+        cuda.memcpy_htod_async(d_input, img_chw, self.stream)
+
+        if not self.context.execute_async_v3(self.stream.handle):
+            raise RuntimeError("TensorRT execute_async_v3 failed")
+
+        cuda.memcpy_dtoh_async(out_host, d_output, self.stream)
+        self.stream.synchronize()
+
+        out = out_host.reshape(out_shape)
+        return out
+
+
+# -----------------------------
+# Camera helpers
+# -----------------------------
+def open_ps3_eye():
+    # пробуем разные backend'ы
+    for backend in [cv2.CAP_DSHOW, cv2.CAP_MSMF]:
+        for idx in [0, 1, 2, 3]:
+            cap = cv2.VideoCapture(idx, backend)
+            if cap.isOpened():
+                print(f"PS3 Eye найдена: index {idx}, backend {backend}")
+                # пробуем MJPG
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_FPS, 60)
+
+                # выводим фактические параметры
+                try:
+                    print("Backend name:", cap.getBackendName())
+                except Exception:
+                    pass
+                print("Width :", cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                print("Height:", cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                print("FPS   :", cap.get(cv2.CAP_PROP_FPS))
+                return cap
+
+            cap.release()
+
+    raise RuntimeError("Камера PS3 Eye не найдена ни на одном index/backend")
 
 
 # -----------------------------
 # Real-time pipeline
 # -----------------------------
-def open_ps3_eye():
-    for idx in [0, 1, 2, 3]:
-        cap = cv2.VideoCapture(idx)
-        if cap.isOpened():
-            print(f"PS3 Eye найдена на index {idx}")
-            return cap
-    raise RuntimeError("Камера PS3 Eye не найдена")
-
-
 def main():
     trt_model = TRTModule(ENGINE_PATH)
 
     cap = open_ps3_eye()
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    cap.set(cv2.CAP_PROP_FPS, 60)
-
     print("ESC = выход")
 
     while True:
         ret, frame = cap.read()
-        if not ret:
-            print("Нет кадров с камеры")
-            break
+        if not ret or frame is None:
+            print("Нет кадров с камеры (ret=False или frame=None)")
+            continue
 
-        # апскейл bicubic → 1280x960
+        # upscaled RAW (bicubic)
         up = cv2.resize(frame, (OUT_W, OUT_H), interpolation=cv2.INTER_CUBIC)
 
-        # формат в CHW float32 [0..1]
         rgb = cv2.cvtColor(up, cv2.COLOR_BGR2RGB)
         x = rgb.astype(np.float32) / 255.0
-        chw = x.transpose(2, 0, 1)[None]  # NCHW
+        chw = x.transpose(2, 0, 1)[None]  # (1, 3, H, W)
 
-        # инференс TensorRT
-        out = trt_model.infer(chw)
+        out = trt_model.infer(chw)        # (1, 3, H, W)
 
-        # NCWH → HWC uint8
         out_img = (out[0].transpose(1, 2, 0) * 255).clip(0, 255).astype(np.uint8)
         out_bgr = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
 
+        cv2.imshow("Bicubic 1280x960", up)
         cv2.imshow("Student SR TensorRT (1280x960)", out_bgr)
 
-        if cv2.waitKey(1) == 27:
+        if cv2.waitKey(1) & 0xFF == 27:
             break
 
     cap.release()
