@@ -49,8 +49,10 @@ venv.bak/
 # Ignore all weights...
 /weights/*
 
-# ...except for the student model
+# ...except for the student model and its generated versions
 !/weights/student_sr.pth
+!/weights/student_sr_1280x960_fp16.engine
+!/weights/student_sr_1280x960.onnx
 
 # Logs and other outputs
 *.log
