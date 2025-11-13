@@ -1,0 +1,4 @@
+✦ The run_pipeline_custom_V2_mtread.py script uses the following NAFNet-related weight files:
+1. NAFSSR-L_4x.pth (for Super-Resolution)
+2. NAFNet-SIDD-width64.pth (for Denoising, loaded by DenoiseProcessor)
+3. NAFNet-REDS-width64.pth (for Deblurring, loaded by DeblurProcessor)   
