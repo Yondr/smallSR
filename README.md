@@ -60,7 +60,37 @@ Teacher-пайплайн складається з сильних моделей
 
 # 🔧 Інсталяція
 
-```bash
+
 git clone https://github.com/Yondr/smallSR.git
 cd smallSR
 pip install -r requirements.txt
+
+
+
+▶️ Запуск студентської моделі
+python python/RUN_STUDENT_TEST.py --input path/to/input --output out/
+
+
+Або завантаж зображення у python/get_data_from_cam.py щоб знімати з PS3 камери.
+
+🧪 Тренування student-моделі
+
+train.train_student_sr
+
+python -m train.train_student_sr `
+>>   --raw-dir "Y:\gemini\project\data\ps3_captures_corresponding_to_multithread" `
+>>   --hires-dir "Y:\gemini\project\data\ps3_out_multithread" `
+>>   --raw-val-dir "Y:\gemini\project\data\ps3_captures_corresponding_to_multithread_VALIDATION" `
+>>   --hires-val-dir "Y:\gemini\project\data\ps3_out_multithread_VALIDATION" `
+>>   --out "Y:\gemini\project\weights\student_sr.pth" `
+>>   --epochs 20 --batch-size 8 --patch-size 128 --num-workers 4    
+
+🧱 Конвертація в ONNX
+python python/convert_to_onnx.py --weights weights/student_sr.pth
+
+🎯 Ціль проєкту
+
+Створити мінімальний, ефективний, легкий SR+денойз пайплайн, який:
+працює на звичайних відеопотоках (PS3 Eye, USB webcams),
+забезпечує високу якість через teacher→student pipeline,
+може бути розгорнутий на Jetson Nano в режимі реального часу.
