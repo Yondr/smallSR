@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 from pathlib import Path
-
+import csv
 import numpy as np
 from PIL import Image
 
@@ -150,6 +150,7 @@ def train(
     raw_val_dir=None,
     hires_val_dir=None,
     out_path="student_sr.pth",
+    log_path="training_log.csv",
     epochs=10,
     batch_size=8,
     lr=1e-4,
@@ -159,6 +160,12 @@ def train(
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
+
+    # --- Setup Logging ---
+    log_file = open(log_path, 'w', newline='')
+    log_writer = csv.writer(log_file)
+    log_writer.writerow(['epoch', 'train_loss', 'train_psnr', 'val_loss', 'val_psnr'])
+
 
     # --- train dataset ---
     train_dataset = SRPairDataset(
@@ -256,6 +263,9 @@ def train(
             val_psnr = val_psnr_sum / n_val
 
         # ---------- LOG + SAVE ----------
+        log_writer.writerow([epoch, train_loss, train_psnr, val_loss, val_psnr])
+        log_file.flush()
+
         if val_loader is not None:
             print(
                 f"[Epoch {epoch}/{epochs}] "
@@ -281,6 +291,8 @@ def train(
             out_path,
         )
         print("Saved:", out_path)
+    
+    log_file.close()
 
 
 if __name__ == "__main__":
@@ -301,6 +313,12 @@ if __name__ == "__main__":
         default="student_sr.pth",
         help="Path to save checkpoint",
     )
+    ap.add_argument(
+        "--log-path",
+        type=str,
+        default="training_log.csv",
+        help="Path to save training log CSV file",
+    )
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-4)
@@ -315,6 +333,7 @@ if __name__ == "__main__":
         raw_val_dir=args.raw_val_dir,
         hires_val_dir=args.hires_val_dir,
         out_path=args.out,
+        log_path=args.log_path,
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,

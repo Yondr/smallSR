@@ -5,3 +5,5 @@ numpy
 Pillow
 tqdm
 nafnetlib
+matplotlib
+pandas

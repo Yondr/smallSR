@@ -67,3 +67,6 @@ python/create_validation_sets.py
 python/delete_validation_files_from_source.py
 upscale1.chn
 utils/
+
+# Track training logs and plots
+!/training_logs/
