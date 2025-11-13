@@ -1,0 +1,35 @@
+# Project Manifest
+
+This file lists the essential components of the smallSR project.
+
+## Core Python Files & Directories
+
+The following files and directories are essential for the project to run and should be tracked by Git.
+
+- `python/capture_ps3_camera.py`: Script for capturing images from the PS3 camera.
+- `python/RUN_STUDENT_TEST.py`: Script for running inference with the trained student model.
+- `python/image_pipeline/`: Directory containing the image processing pipeline scripts and model architectures.
+- `python/train/`: Directory containing the training scripts for the student model.
+
+## Model Weights
+
+Only the following model weight file should be tracked by Git:
+
+- `weights/student_sr.pth`
+
+## Project Configuration
+
+- `.gitignore`: Specifies files and directories to be ignored by Git.
+- `README.md`: Project documentation.
+- `requirements.txt`: A list of Python packages required by the project.
+- `project_manifest.txt`: This file.
+
+## Python Dependencies (for requirements.txt)
+
+- torch
+- torchvision
+- opencv-python
+- numpy
+- Pillow
+- tqdm
+- nafnetlib
