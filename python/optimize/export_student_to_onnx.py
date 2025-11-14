@@ -1,9 +1,12 @@
 import torch
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from train.train_student_sr import StudentSR  # если путь другой — поправь импорт
 
 # Пути
-CKPT_PATH = "../weights/student_sr.pth"          # от папки python/
-ONNX_PATH = "../weights/student_sr_1280x960.onnx"
+CKPT_PATH = "../../weights/student_sr.pth"          # от папки python/optimize
+ONNX_PATH = "../../weights/student_sr_1280x960.onnx"
 
 # Фиксированное разрешение под наш пайплайн: 1280x960 (W x H)
 H, W = 960, 1280   # NCHW -> (1, 3, 960, 1280)

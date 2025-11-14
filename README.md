@@ -73,7 +73,27 @@ python python/RUN_STUDENT_TEST.py --input path/to/input --output out/
 
 Або завантаж зображення у python/get_data_from_cam.py щоб знімати з PS3 камери.
 
-🧪 Тренування student-моделі
+---
+
+# 🚀 Real-time Inference
+
+To run the real-time super-resolution pipeline with a PS3 Eye camera, first make sure you have the required packages installed from `requirements.txt`. It is recommended to use a virtual environment.
+
+Then, use the following command from the `project_clean` directory:
+
+```bash
+python python/realtime_trt_student.py
+```
+
+This will open two windows:
+-   **Original 640x480**: The raw input from the PS3 Eye camera.
+-   **Student SR TensorRT (1280x960)**: The super-resolution output from the TensorRT model.
+
+Press `ESC` to close the windows and stop the script.
+
+---
+
+# 🧪 Тренування student-моделі
 
 train.train_student_sr
 

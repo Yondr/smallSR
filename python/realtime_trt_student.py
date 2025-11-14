@@ -3,6 +3,7 @@ import numpy as np
 import tensorrt as trt
 import pycuda.driver as cuda
 import pycuda.autoinit
+import time
 
 ENGINE_PATH = "Y:/gemini/project_clean/weights/student_sr_1280x960_fp16.engine"
 
@@ -111,9 +112,15 @@ def open_ps3_eye():
 # -----------------------------
 def main():
     trt_model = TRTModule(ENGINE_PATH)
+    gpu_name = pycuda.autoinit.device.name()
+    device_info = f"TensorRT | {gpu_name}"
 
     cap = open_ps3_eye()
     print("ESC = выход")
+
+    frame_count = 0
+    fps = 0
+    start_time = time.time()
 
     while True:
         ret, frame = cap.read()
@@ -133,7 +140,19 @@ def main():
         out_img = (out[0].transpose(1, 2, 0) * 255).clip(0, 255).astype(np.uint8)
         out_bgr = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
 
-        cv2.imshow("Bicubic 1280x960", up)
+        # FPS counter
+        frame_count += 1
+        if frame_count >= 30:
+            end_time = time.time()
+            fps = frame_count / (end_time - start_time)
+            frame_count = 0
+            start_time = time.time()
+
+        # Display info
+        cv2.putText(out_bgr, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(out_bgr, device_info, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        cv2.imshow("Original 640x480", frame)
         cv2.imshow("Student SR TensorRT (1280x960)", out_bgr)
 
         if cv2.waitKey(1) & 0xFF == 27:
